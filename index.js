@@ -1,16 +1,17 @@
 const express = require('express');
-const { Telegraf, Markup } = require('telegraf');
+const {Telegraf, Markup} = require('telegraf');
 const mongoose = require('mongoose');
 const config = require('./config.js')
-const { searchGoodsByQuery } = require("./actions/sertifikatAction");
-const { wbAction } = require("./actions/wbAction");
+const Answer = require("./models/answerModel");
+const {searchGoodsByQuery} = require("./actions/sertifikatAction");
+const {wbAction} = require("./actions/wbAction");
 const {fetchTrts} = require("./actions/trtsAction");
-const { chZnakAction } = require("./actions/chZnakAction");
+const {chZnakAction} = require("./actions/chZnakAction");
 require('dotenv').config(); // Загрузка переменных окружения из файла .env
 
 // Создание экземпляров приложения Express и бота Telegraf
 const app = express();
-const bot = new Telegraf('6834751212:AAEoFFdjsX2D8cgFHRUw2ZX1-Q7z_VzT2nc'); // Укажите здесь свой токен Telegram бота
+const bot = new Telegraf(process.env.BOT_TOKEN); // Укажите здесь свой токен Telegram бота
 
 // Подключение к MongoDB
 mongoose.connect(process.env.MONGO_URI, config.mongoOptions);
@@ -23,6 +24,7 @@ db.once('open', async () => {
 });
 
 let lastCategory = ''; // Переменная для хранения последней выбранной категории
+let awaitingQuestion = false;
 
 bot.hears('?', (ctx) => {
     const buttons = Object.keys(config.collections).map(key =>
@@ -30,6 +32,7 @@ bot.hears('?', (ctx) => {
     );
     ctx.reply('Выберите категорию:', Markup.inlineKeyboard(buttons));
 });
+
 
 bot.action('chZnak', (ctx) => {
     const buttons = Object.keys(config.chZnakCollection).map(key =>
@@ -55,7 +58,7 @@ bot.action(Object.keys(config.chZnakCollection), async (ctx) => {
 bot.action('sertifikat', async (ctx) => {
     // Устанавливаем флаг активации категории 'sertifikat'
     lastCategory = 'Сертификат соответствия';
-    ctx.reply(`Вы брали Сертификаты. Введите ключевые слова:`);
+    ctx.reply(`Сертификаты. Введите ключевые слова: Например: платье или брюки`);
 });
 
 bot.action('wb', (ctx) => {
@@ -70,33 +73,67 @@ bot.action('trts', async (ctx) => {
     // Дополнительный код для этой категории
 });
 
-// bot.on('text', async (ctx) => {
-//     const userQuery = ctx.message.text; // Получаем текст запроса пользователя
-//     // Передаем текст запроса и контекст бота для обработки запроса
-//     await searchGoodsByQuery(userQuery, ctx);
-// });
+bot.action('unansweredQuestion', async (ctx) => {
+    const userId = ctx.chat.id;
+    const messageId = ctx.callbackQuery.message.message_id;
+    const userQuery = ctx.message.text;
+
+    try {
+        const question = new Answer({
+            userId: userId,
+            questionText: userQuery,
+            messageId: messageId
+        });
+
+        await question.save();
+        ctx.reply(`Введите ваш вопрос:`);
+    } catch (error) {
+        console.error('Ошибка при сохранении вопроса:', error);
+        ctx.reply('Произошла ошибка при сохранении вашего вопроса');
+    }
+});
 
 bot.on('text', async (ctx) => {
     let userQuery = ctx.message.text;
-    switch (lastCategory) {
-        case 'Честный знак':
-            ctx.reply(`Выберите подкатегорию честного знака:`);
-            break;
-        case 'Сертификат соответствия':
-            ctx.reply(`Вы выбрали категорию СЕртификат`);// Получаем текст запроса пользователя
+    const queryText = `начните новый поиск отправив ? знак \nили напишите слово " нет ответа " если вы \nне нашли ответ. Я запишу ваш вопрос.`;
 
-            // Передаем текст запроса и контекст бота для обработки запроса
-            await searchGoodsByQuery(userQuery, ctx);
-            break;
-        case 'Wildberries':
-            await wbAction(userQuery, ctx);
-            ctx.reply(`Вы выбрали категорию ВБ`);
-            break;
-        case 'ТР ТС':
-            ctx.reply(`Вы выбрали категорию ТР ТС`);
-            break;
-        default:
-            console.log('Неизвестная категория');
+    // Если пользователь написал "нет ответа", ожидаем вопрос
+    if (userQuery.toLowerCase() === 'нет ответа') {
+        awaitingQuestion = true;
+        await ctx.reply('Пожалуйста, напишите свой вопрос.');
+    } else if (awaitingQuestion) { // Если ожидается вопрос и пользователь его написал
+        awaitingQuestion = false; // Сброс флага ожидания вопроса
+
+        // Сохраняем вопрос в базе данных
+        const question = new Answer({
+            question: userQuery,
+            answer: ''
+        });
+        await question.save();
+
+        // Отправляем сообщение об успешном сохранении вопроса
+        await ctx.reply('Ваш вопрос успешно сохранен. Спасибо!');
+    } else {
+        // Обработка вопросов в зависимости от категории или другой логики
+        switch (lastCategory) {
+            case 'Честный знак':
+                ctx.reply(queryText);
+                break;
+            case 'Сертификат соответствия':
+                // Передаем текст запроса и контекст бота для обработки запроса
+                await searchGoodsByQuery(userQuery, ctx);
+                ctx.reply(queryText);
+                break;
+            case 'Wildberries':
+                await wbAction(userQuery, ctx);
+                ctx.reply(queryText);
+                break;
+            case 'ТР ТС':
+                ctx.reply(queryText);
+                break;
+            default:
+                console.log('Неизвестная категория');
+        }
     }
 });
 
