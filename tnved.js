@@ -1,3 +1,4 @@
+const config = require("./config");
 const { MongoClient } = require('mongodb');
 require('dotenv').config();
 
@@ -14,7 +15,7 @@ async function insertDocuments() {
         const collection = database.collection('wb'); // Название вашей коллекции
 
         // Объекты для сохранения
-        const documents = [];
+        const documents = config.trtsDB;
 
         const result = await collection.insertMany(documents);
         console.log(`${result.insertedCount} документов успешно добавлено`);
