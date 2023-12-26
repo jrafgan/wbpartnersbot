@@ -73,66 +73,71 @@ bot.action('trts', async (ctx) => {
     // Дополнительный код для этой категории
 });
 
-bot.action('unansweredQuestion', async (ctx) => {
-    const userId = ctx.chat.id;
-    const messageId = ctx.callbackQuery.message.message_id;
-    const userQuery = ctx.message.text;
-
-    try {
-        const question = new Answer({
-            userId: userId,
-            questionText: userQuery,
-            messageId: messageId
-        });
-
-        await question.save();
-        ctx.reply(`Введите ваш вопрос:`);
-    } catch (error) {
-        console.error('Ошибка при сохранении вопроса:', error);
-        ctx.reply('Произошла ошибка при сохранении вашего вопроса');
-    }
-});
-
 bot.on('text', async (ctx) => {
-    let userQuery = ctx.message.text;
-    const queryText = `начните новый поиск отправив ? знак \nили напишите слово " нет ответа " если вы \nне нашли ответ. Я запишу ваш вопрос.`;
+    const userQuery = ctx.message.text.toLowerCase(); // Получаем текст запроса пользователя
+    const isAdmin = checkIfUserIsAdmin(ctx); // Функция проверки на админа
+    const queryText = `начните новый поиск отправив ? знак \nили напишите слово "нет ответа " если вы \nне нашли ответ. Я запишу ваш вопрос.`;
 
-    // Если пользователь написал "нет ответа", ожидаем вопрос
-    if (userQuery.toLowerCase() === 'нет ответа') {
-        awaitingQuestion = true;
-        await ctx.reply('Пожалуйста, напишите свой вопрос.');
-    } else if (awaitingQuestion) { // Если ожидается вопрос и пользователь его написал
-        awaitingQuestion = false; // Сброс флага ожидания вопроса
+    if (isAdmin && userQuery.includes(process.env.ADMIN_WORD)) {
+        // Обработка запроса админа для просмотра новых вопросов без ответов
+        try {
+            const unansweredQuestions = await Answer.find({ answer: '' });
 
-        // Сохраняем вопрос в базе данных
-        const question = new Answer({
-            question: userQuery,
-            answer: ''
-        });
-        await question.save();
+            let message = 'Список вопросов без ответов:\n';
+            unansweredQuestions.forEach((question, index) => {
+                message += `${index + 1}. Вопрос: ${question.question} (ID: ${question._id})\n`;
+            });
+            ctx.reply(message);
 
-        // Отправляем сообщение об успешном сохранении вопроса
-        await ctx.reply('Ваш вопрос успешно сохранен. Спасибо!');
+            for (const question of unansweredQuestions) {
+                await ctx.reply(`Введите ответ на вопрос (ID: ${question._id}): ${question.question}`);
+                const answer = await bot.hears(/.*/, async (ctx) => {
+                    const userAnswer = ctx.message.text;
+                    await Answer.findByIdAndUpdate(question._id, { answer: userAnswer });
+                    ctx.reply('Ответ успешно сохранен. Введите следующий ответ или завершите процесс.');
+                });
+            }
+        } catch (error) {
+            console.error('Ошибка:', error);
+            ctx.reply('Произошла ошибка при выполнении запроса.');
+        }
     } else {
-        // Обработка вопросов в зависимости от категории или другой логики
-        switch (lastCategory) {
-            case 'Честный знак':
-                ctx.reply(queryText);
-                break;
-            case 'Сертификат соответствия':
-                // Передаем текст запроса и контекст бота для обработки запроса
-                await searchGoodsByQuery(userQuery, ctx);
-                ctx.reply(queryText);
-                break;
-            case 'Wildberries':
-                await wbAction(userQuery, ctx);
-                ctx.reply(queryText);
-                break;
-            case 'ТР ТС':
-                ctx.reply(queryText);
-                break;
-            default:
-                console.log('Неизвестная категория');
+        // Ваша существующая логика обработки запросов от пользователей
+        let awaitingQuestion = false; // Не забудьте инициализировать этот флаг
+
+        if (userQuery === 'нет ответа') {
+            awaitingQuestion = true;
+            await ctx.reply('Пожалуйста, напишите свой вопрос.');
+        } else if (awaitingQuestion) {
+            awaitingQuestion = false;
+            const question = new Answer({
+                question: userQuery,
+                answer: ''
+            });
+            await question.save();
+            await ctx.reply('Ваш вопрос успешно сохранен. Спасибо!');
+        } else {
+            // Ваша существующая логика обработки вопросов по категориям
+            // Например:
+            switch (lastCategory) {
+                case 'Честный знак':
+                    ctx.reply(queryText);
+                    break;
+                case 'Сертификат соответствия':
+                    // Передаем текст запроса и контекст бота для обработки запроса
+                    await searchGoodsByQuery(userQuery, ctx);
+                    ctx.reply(queryText);
+                    break;
+                case 'Wildberries':
+                    await wbAction(userQuery, ctx);
+                    ctx.reply(queryText);
+                    break;
+                case 'ТР ТС':
+                    ctx.reply(queryText);
+                    break;
+                default:
+                    console.log('Неизвестная категория');
+            }
         }
     }
 });
