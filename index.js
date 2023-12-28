@@ -73,12 +73,13 @@ bot.action('trts', async (ctx) => {
     // Дополнительный код для этой категории
 });
 
+console.log(process.env.ADMIN_WORD);
+
 bot.on('text', async (ctx) => {
     const userQuery = ctx.message.text.toLowerCase(); // Получаем текст запроса пользователя
-    const isAdmin = checkIfUserIsAdmin(ctx); // Функция проверки на админа
     const queryText = `начните новый поиск отправив ? знак \nили напишите слово "нет ответа " если вы \nне нашли ответ. Я запишу ваш вопрос.`;
 
-    if (isAdmin && userQuery.includes(process.env.ADMIN_WORD)) {
+    if (userQuery === process.env.ADMIN_WORD) {
         // Обработка запроса админа для просмотра новых вопросов без ответов
         try {
             const unansweredQuestions = await Answer.find({ answer: '' });
