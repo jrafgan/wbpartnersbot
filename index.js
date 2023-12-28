@@ -76,69 +76,45 @@ bot.action('trts', async (ctx) => {
 console.log(process.env.ADMIN_WORD);
 
 bot.on('text', async (ctx) => {
-    const userQuery = ctx.message.text.toLowerCase(); // Получаем текст запроса пользователя
-    const queryText = `начните новый поиск отправив ? знак \nили напишите слово "нет ответа " если вы \nне нашли ответ. Я запишу ваш вопрос.`;
+    let userQuery = ctx.message.text;
+    const queryText = `начните новый поиск отправив ? знак \nили напишите слово " нет ответа " если вы \nне нашли ответ. Я запишу ваш вопрос.`;
 
-    if (userQuery === process.env.ADMIN_WORD) {
-        // Обработка запроса админа для просмотра новых вопросов без ответов
-        try {
-            const unansweredQuestions = await Answer.find({ answer: '' });
+    // Если пользователь написал "нет ответа", ожидаем вопрос
+    if (userQuery.toLowerCase() === 'нет ответа') {
+        awaitingQuestion = true;
+        await ctx.reply('Пожалуйста, напишите свой вопрос.');
+    } else if (awaitingQuestion) { // Если ожидается вопрос и пользователь его написал
+        awaitingQuestion = false; // Сброс флага ожидания вопроса
 
-            let message = 'Список вопросов без ответов:\n';
-            unansweredQuestions.forEach((question, index) => {
-                message += `${index + 1}. Вопрос: ${question.question} (ID: ${question._id})\n`;
-            });
-            ctx.reply(message);
+        // Сохраняем вопрос в базе данных
+        const question = new Answer({
+            question: userQuery,
+            answer: ''
+        });
+        await question.save();
 
-            for (const question of unansweredQuestions) {
-                await ctx.reply(`Введите ответ на вопрос (ID: ${question._id}): ${question.question}`);
-                const answer = await bot.hears(/.*/, async (ctx) => {
-                    const userAnswer = ctx.message.text;
-                    await Answer.findByIdAndUpdate(question._id, { answer: userAnswer });
-                    ctx.reply('Ответ успешно сохранен. Введите следующий ответ или завершите процесс.');
-                });
-            }
-        } catch (error) {
-            console.error('Ошибка:', error);
-            ctx.reply('Произошла ошибка при выполнении запроса.');
-        }
+        // Отправляем сообщение об успешном сохранении вопроса
+        await ctx.reply('Ваш вопрос успешно сохранен. Спасибо!');
     } else {
-        // Ваша существующая логика обработки запросов от пользователей
-        let awaitingQuestion = false; // Не забудьте инициализировать этот флаг
-
-        if (userQuery === 'нет ответа') {
-            awaitingQuestion = true;
-            await ctx.reply('Пожалуйста, напишите свой вопрос.');
-        } else if (awaitingQuestion) {
-            awaitingQuestion = false;
-            const question = new Answer({
-                question: userQuery,
-                answer: ''
-            });
-            await question.save();
-            await ctx.reply('Ваш вопрос успешно сохранен. Спасибо!');
-        } else {
-            // Ваша существующая логика обработки вопросов по категориям
-            // Например:
-            switch (lastCategory) {
-                case 'Честный знак':
-                    ctx.reply(queryText);
-                    break;
-                case 'Сертификат соответствия':
-                    // Передаем текст запроса и контекст бота для обработки запроса
-                    await searchGoodsByQuery(userQuery, ctx);
-                    ctx.reply(queryText);
-                    break;
-                case 'Wildberries':
-                    await wbAction(userQuery, ctx);
-                    ctx.reply(queryText);
-                    break;
-                case 'ТР ТС':
-                    ctx.reply(queryText);
-                    break;
-                default:
-                    console.log('Неизвестная категория');
-            }
+        // Обработка вопросов в зависимости от категории или другой логики
+        switch (lastCategory) {
+            case 'Честный знак':
+                ctx.reply(queryText);
+                break;
+            case 'Сертификат соответствия':
+                // Передаем текст запроса и контекст бота для обработки запроса
+                await searchGoodsByQuery(userQuery, ctx);
+                ctx.reply(queryText);
+                break;
+            case 'Wildberries':
+                await wbAction(userQuery, ctx);
+                ctx.reply(queryText);
+                break;
+            case 'ТР ТС':
+                ctx.reply(queryText);
+                break;
+            default:
+                console.log('Неизвестная категория');
         }
     }
 });
