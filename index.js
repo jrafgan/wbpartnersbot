@@ -33,33 +33,6 @@ bot.hears('?', (ctx) => {
     ctx.reply('Выберите категорию:', Markup.inlineKeyboard(buttons));
 });
 
-bot.hears(process.env.ADMIN_WORD, async (ctx) => {
-    try {
-        const unansweredQuestions = await Answer.find({ answer: '' });
-
-        let message = 'Список вопросов без ответов:\n';
-        unansweredQuestions.forEach((question, index) => {
-            message += `${index + 1}. Вопрос: ${question.question} (ID: ${question._id})\n`;
-        });
-        await ctx.reply(message);
-
-        for (const question of unansweredQuestions) {
-            await ctx.reply(`Введите ответ на вопрос (ID: ${question._id}): ${question.question}`);
-            const answer = await bot.hears(/.*/, async (ctx) => {
-                const userAnswer = ctx.message.text;
-                await Answer.findByIdAndUpdate(question._id, { answer: userAnswer });
-                ctx.reply('Ответ успешно сохранен. Введите следующий ответ или завершите процесс.');
-                // Удаляем обработчик после успешного ответа пользователя
-                bot.removeMiddleware(answer);
-            });
-        }
-    } catch (error) {
-        console.error('Ошибка:', error);
-        ctx.reply('Произошла ошибка при выполнении запроса.');
-    }
-});
-
-
 bot.action('chZnak', (ctx) => {
     const buttons = Object.keys(config.chZnakCollection).map(key =>
         Markup.button.callback(config.chZnakCollection[key], key)
