@@ -115,9 +115,6 @@ bot.on('text', async (ctx) => {
                 currentQuestionIndex = 0;
             }
             await processNextQuestion(ctx); // Обработка следующего вопроса
-        } else {
-            await ctx.reply('Вопросов больше нет.');
-            return;
         }
     // Если пользователь написал "нет ответа", ожидаем вопрос
     if (userQuery.toLowerCase() === 'нет ответа') {
