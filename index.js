@@ -105,18 +105,18 @@ bot.on('text', async (ctx) => {
     let userQuery = ctx.message.text;
     const queryText = `начните новый поиск отправив ? знак \nили напишите слово " нет ответа " если вы \nне нашли ответ. Я запишу ваш вопрос.`;
 
-    if (awaitingAnswer) {
         if (currentQuestionIndex > 0 && currentQuestionIndex <= unansweredQuestions.length) {
             const question = unansweredQuestions[currentQuestionIndex - 1];
             await Answer.findByIdAndUpdate(question._id, { answer: userQuery });
             await ctx.reply('Ответ успешно сохранен.');
+            if (currentQuestionIndex === unansweredQuestions.length) {
+                awaitingAnswer = false;
+            }
             await processNextQuestion(ctx); // Обработка следующего вопроса
         } else {
-            awaitingAnswer = false;
             await ctx.reply('Вопросов больше нет.');
             return;
         }
-    }
     // Если пользователь написал "нет ответа", ожидаем вопрос
     if (userQuery.toLowerCase() === 'нет ответа') {
         awaitingQuestion = true;
