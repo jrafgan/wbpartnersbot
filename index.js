@@ -111,6 +111,8 @@ bot.on('text', async (ctx) => {
             await ctx.reply('Ответ успешно сохранен.');
             if (currentQuestionIndex === unansweredQuestions.length) {
                 awaitingAnswer = false;
+                unansweredQuestions = [];
+                currentQuestionIndex = 0;
             }
             await processNextQuestion(ctx); // Обработка следующего вопроса
         } else {
